@@ -1,38 +1,50 @@
-name: Build
-on:
-  push:
-    branches:
-      - '1.18.x/*'
-  pull_request:
-    types: [ opened, synchronize, reopened ]
+name: build
+on: push
 
 jobs:
-  validate-gradle:
-    name: "Validate Gradle wrapper"
-    runs-on: ubuntu-latest
+  build:
+    strategy:
+      matrix:
+        java: [ 17-jdk ]
+    runs-on: ubuntu-20.04
+    container:
+      image: eclipse-temurin:${{ matrix.java }}
+      options: --user root
     steps:
       - uses: actions/checkout@v2
         with:
-          submodules: true # Clone with vs-core submodule
-      - uses: gradle/wrapper-validation-action@v1
+          fetch-depth: 0
 
-  test-server:
-    name: Test Server
-    strategy:
-      matrix:
-        serverType: [ 'fabric', 'forge' ]
-    runs-on: ubuntu-latest
-    timeout-minutes: 20 # Fail after 20 minutes
-    steps:
-      - name: Shallow Clone (--recurse-submodules)
-        uses: actions/checkout@v2
+      - name: Validate Gradle wrapper
+        uses: gradle/wrapper-validation-action@v1
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      # Build
+
+      - name: Build Fabric
+        run: ./gradlew :fabric:build
+
+      - name: Build Forge
+        run: ./gradlew :forge:build
+
+      # Upload
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v2
         with:
-          submodules: recursive
+          name: Artifacts
+          path: ./*/build/libs/
 
-      - name: Setup Gradle & Caches
-        uses: "./.github/actions/setup-gradle"
-
-      - name: Test Server
-        uses: ValkyrienSkies/Minecraft-Architectury-Testing@v1.9
+      - name: Upload artifacts (Fabric)
+        uses: actions/upload-artifact@v2
         with:
-          serverType: ${{ matrix.serverType }}
+          name: Artifacts (Fabric)
+          path: ./fabric/build/libs/
+
+      - name: Upload artifacts (Forge)
+        uses: actions/upload-artifact@v2
+        with:
+          name: Artifacts (Forge)
+          path: ./forge/build/libs/
